@@ -43,12 +43,13 @@
 * Need to keep discrete log - finding $\alpha$ given $g^{\alpha}$ - *hard*.
 
 # Language of ECC
-* Elliptic curves can be defined over any field: $\mathbb{R},$ $\mathbb{Z}_p,$ $\mathbb{Z}_{2^k},$ etc.
-
+* Canonical formula for point addition
 $$x_R=\left(\frac{y_P-y_Q}{x_P-x_Q}\right)^2-x_P-x_Q;$$ $$y_R=\left(\frac{y_P-y_Q}{x_P-x_Q}\right)(x_P-x_R)-y_P.$$ 
 
-# Finite fields
-* Typically defined over *finite* fields
+* Elliptic curves can be defined over any field 
+
+# Elliptic curves over finite fields
+* Typically defined over *finite* fields: $\mathbb{Z}_p$ (integers mod $p$), $\mathbb{Z}_{2^k}$ (field of size $2^k$) 
     * Finite representations of points 
     * Discrete-log problem hard
 
