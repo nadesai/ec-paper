@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+ "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <meta name="author" content="Created by Brandon Azad and Nikhil Desai" />
+  <title>ec: A Haskell Elliptic-Curve Cryptography Library</title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <style type="text/css">
+table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode {
+  margin: 0; padding: 0; vertical-align: baseline; border: none; }
+table.sourceCode { width: 100%; line-height: 100%; }
+td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; color: #aaaaaa; border-right: 1px solid #aaaaaa; }
+td.sourceCode { padding-left: 5px; }
+code > span.kw { color: #007020; font-weight: bold; }
+code > span.dt { color: #902000; }
+code > span.dv { color: #40a070; }
+code > span.bn { color: #40a070; }
+code > span.fl { color: #40a070; }
+code > span.ch { color: #4070a0; }
+code > span.st { color: #4070a0; }
+code > span.co { color: #60a0b0; font-style: italic; }
+code > span.ot { color: #007020; }
+code > span.al { color: #ff0000; font-weight: bold; }
+code > span.fu { color: #06287e; }
+code > span.er { color: #ff0000; font-weight: bold; }
+  </style>
+  <link rel="stylesheet" type="text/css" media="screen, projection, print"
+    href="http://www.w3.org/Talks/Tools/Slidy2/styles/slidy.css" />
+  <script src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script>
+  <script src="http://www.w3.org/Talks/Tools/Slidy2/scripts/slidy.js"
+    charset="utf-8" type="text/javascript"></script>
+</head>
+<body>
+<div class="slide titlepage">
+  <h1 class="title"><code>ec</code>: A Haskell Elliptic-Curve Cryptography Library</h1>
+  <p class="author">
+Created by Brandon Azad and Nikhil Desai
+  </p>
+</div>
+<div id="intro" class="slide section level1">
+<h1>Intro</h1>
+<ul class="incremental">
+<li>A new library for ECC.</li>
+<li>Advantages:
+<ul class="incremental">
+<li>Modular</li>
+<li>Cleanly implemented</li>
+<li>Readily extensible</li>
+</ul></li>
+<li>Provides performant implementations while retaining flexibility</li>
+</ul>
+</div>
+<div id="motivation" class="slide section level1">
+<h1>Motivation</h1>
+<ul class="incremental">
+<li>Cryptography research: creating new <em>schemes</em> for encryption/authentication
+<ul class="incremental">
+<li>Innovative mixing and matching of different primitives</li>
+<li>Making incremental improvements to existing ones</li>
+<li>Collaboration/extensibility necessary</li>
+</ul></li>
+<li>Don't want researchers to reinvent the wheel: want clean, usable framework for testing</li>
+<li>Existing libraries aren't great for this
+<ul class="incremental">
+<li><code>hecc</code> (Marcel Fourne)</li>
+<li><code>crypto-pubkey</code> (Vincent Hanquez)</li>
+</ul></li>
+</ul>
+</div>
+<div id="why-haskell" class="slide section level1">
+<h1>Why Haskell?</h1>
+<ul>
+<li>Clean specifications possible without sacrificing performance</li>
+<li>Good for mathematical abstraction</li>
+<li>Thanks to this class, we can do cool things with Haskell!</li>
+</ul>
+</div>
+<div id="idea-of-elliptic-curve-cryptography" class="slide section level1">
+<h1>Idea of elliptic-curve cryptography</h1>
+<ul>
+<li><strong>Elliptic curves</strong>: defined by equation of form <span class="math">\(y^2=x^3+ax+b\)</span></li>
+<li>Points endowed with <strong>group structure.</strong></li>
+</ul>
+<div class="figure">
+<img src="images/eca.gif" title="EC addition" alt="EC addition" /><p class="caption">EC addition</p>
+</div>
+</div>
+<div id="elgamal-encryption" class="slide section level1">
+<h1>ElGamal encryption</h1>
+<ul>
+<li>Elliptic curve groups well-suited for <strong>ElGamal encryption.</strong></li>
+<li>Prerequisite: group <span class="math">\(G\)</span> of prime order <span class="math">\(p\)</span></li>
+<li>Asymmetric key exchange: <span class="math">\(g\in G\)</span> public (&quot;generator&quot;), <span class="math">\(\alpha\in\mathbb{Z}_p\)</span> private, <span class="math">\(h=g^{\alpha}\)</span> public</li>
+<li>To encrypt <span class="math">\(m\in G\)</span>:
+<ul>
+<li>Pick random <span class="math">\(r\leftarrow\mathbb{Z}_p\)</span></li>
+<li>Send <span class="math">\((g^r, h^rm)\)</span></li>
+</ul></li>
+<li>To decrypt <span class="math">\((x, y)\)</span>
+<ul>
+<li>Compute <span class="math">\(m = x^{-\alpha}y=g^{-\alpha r}h^rm=g^{-\alpha r}g^{\alpha r}m=m\)</span></li>
+</ul></li>
+<li>Need fast exponentiation and inversion, but...</li>
+<li>Need to make sure finding <span class="math">\(\alpha\)</span> given <span class="math">\(g^{\alpha}\)</span> (<em>discrete log</em> problem) <em>hard</em>.</li>
+</ul>
+</div>
+<div id="elliptic-curves-over-arbitrary-fields" class="slide section level1">
+<h1>Elliptic curves over arbitrary fields</h1>
+<ul>
+<li><p>Canonical formula for point addition <span class="math">\[x_R=\left(\frac{y_P-y_Q}{x_P-x_Q}\right)^2-x_P-x_Q;\]</span> <span class="math">\[y_R=\left(\frac{y_P-y_Q}{x_P-x_Q}\right)(x_P-x_R)-y_P.\]</span></p></li>
+<li><p>Elliptic curves can be defined over any field</p></li>
+</ul>
+</div>
+<div id="elliptic-curves-over-finite-fields" class="slide section level1">
+<h1>Elliptic curves over finite fields</h1>
+<ul>
+<li>Typically defined over <em>finite</em> fields: <span class="math">\(\mathbb{Z}_p\)</span> (integers mod <span class="math">\(p\)</span>), <span class="math">\(\mathbb{Z}_{2^k}\)</span> (field of size <span class="math">\(2^k\)</span>)
+<ul>
+<li>Finite representations of points (<span class="math">\(\leq 2k\)</span> bits for <span class="math">\(\mathbb{Z}_{2^k}\)</span>)</li>
+<li>Discrete-log problem hard</li>
+</ul></li>
+</ul>
+</div>
+<div id="point-types" class="slide section level1">
+<h1>Point types</h1>
+<ul>
+<li>Affine: standard <span class="math">\((x,y)\)</span> representation</li>
+<li>Jacobian: <span class="math">\((X,Y,Z)\)</span>
+<ul>
+<li>Represents <span class="math">\(({X}/{Z^2},Y/{Z^3})\)</span> in affine coordinates</li>
+<li>Easier to add</li>
+</ul></li>
+</ul>
+</div>
+<div id="structure-of-elliptic-curve-cryptography" class="slide section level1">
+<h1>Structure of elliptic-curve cryptography</h1>
+<ul>
+<li>Key components
+<ul>
+<li>Underlying field (<span class="math">\(\mathbb{Z}_p\)</span>, <span class="math">\(\mathbb{Z}_{2^k}\)</span>, etc.)</li>
+<li>Point type (Affine, Jacobian, etc.)</li>
+<li>Curve type (Weierstrass, Edwards, etc.)</li>
+</ul></li>
+</ul>
+</div>
+<div id="structure-of-elliptic-curve-library" class="slide section level1">
+<h1>Structure of elliptic-curve library</h1>
+<ul>
+<li>Key typeclasses
+<ul>
+<li><code>Field</code></li>
+<li><code>EllipticCurvePoint</code> (multi-parameter)</li>
+<li><code>EllipticCurve</code> (multi-parameter)</li>
+</ul></li>
+</ul>
+</div>
+<div id="the-field-typeclass" class="slide section level1">
+<h1>The <code>Field</code> typeclass</h1>
+<pre class="sourceCode haskell" id="mycode"><code class="sourceCode haskell"><span class="kw">class</span> (<span class="dt">Eq</span> f) <span class="ot">=&gt;</span> <span class="dt">Field</span> f <span class="kw">where</span>
+  <span class="kw">type</span> <span class="dt">FieldParameter</span> f
+<span class="ot">  zero ::</span> f
+<span class="ot">  one  ::</span> f
+<span class="ot">  add  ::</span> <span class="dt">FieldParameter</span> f <span class="ot">-&gt;</span> f <span class="ot">-&gt;</span> f <span class="ot">-&gt;</span> f
+<span class="ot">  neg  ::</span> <span class="dt">FieldParameter</span> f <span class="ot">-&gt;</span> f <span class="ot">-&gt;</span> f
+<span class="ot">  mul  ::</span> <span class="dt">FieldParameter</span> f <span class="ot">-&gt;</span> f <span class="ot">-&gt;</span> f <span class="ot">-&gt;</span> f
+<span class="ot">  inv  ::</span> <span class="dt">FieldParameter</span> f <span class="ot">-&gt;</span> f <span class="ot">-&gt;</span> f
+  
+  <span class="co">-- Default, but slow implementations provided</span>
+<span class="ot">  rep  ::</span> <span class="dt">FieldParameter</span> f <span class="ot">-&gt;</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> f <span class="ot">-&gt;</span> f
+<span class="ot">  sqr  ::</span> <span class="dt">FieldParameter</span> f <span class="ot">-&gt;</span> f <span class="ot">-&gt;</span> f 
+<span class="ot">  pow  ::</span> <span class="dt">FieldParameter</span> f <span class="ot">-&gt;</span> f <span class="ot">-&gt;</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> f</code></pre>
+</div>
+<div id="easy-access-to-field-operations-fieldoperations-f" class="slide section level1">
+<h1>Easy access to field operations: <code>FieldOperations f</code></h1>
+<pre class="sourceCode haskell" id="mycode"><code class="sourceCode haskell"><span class="kw">data</span> <span class="dt">FieldOperations</span> f <span class="fu">=</span> <span class="dt">FieldOperations</span>
+  {<span class="ot"> (+)  ::</span> f <span class="ot">-&gt;</span> f <span class="ot">-&gt;</span> f       
+  ,<span class="ot"> (.-) ::</span> f <span class="ot">-&gt;</span> f          
+  ,<span class="ot"> (-)  ::</span> f <span class="ot">-&gt;</span> f <span class="ot">-&gt;</span> f     
+  ,<span class="ot"> (#)  ::</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> f <span class="ot">-&gt;</span> f
+  ,<span class="ot"> (*)  ::</span> f <span class="ot">-&gt;</span> f <span class="ot">-&gt;</span> f
+  ,<span class="ot"> (^.) ::</span> f <span class="ot">-&gt;</span> f
+  ,<span class="ot"> (./) ::</span> f <span class="ot">-&gt;</span> f
+  ,<span class="ot"> (/)  ::</span> f <span class="ot">-&gt;</span> f <span class="ot">-&gt;</span> f
+  ,<span class="ot"> (^)  ::</span> f <span class="ot">-&gt;</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> f
+  }
+
+<span class="ot">ops ::</span> (<span class="dt">Field</span> f) <span class="ot">=&gt;</span> <span class="dt">FieldParameter</span> f <span class="ot">-&gt;</span> <span class="dt">FieldOperations</span> f
+ops p <span class="fu">=</span> <span class="dt">FieldOperations</span> (add p) (neg p) (sub p) (rep p)
+                        (mul p) (sqr p) (inv p) (div p) (pow p)</code></pre>
+<pre class="sourceCode haskell" id="mycode"><code class="sourceCode haskell"><span class="ot">{-# LANGUAGE RecordWildCards #-}</span>
+onCurve (<span class="dt">EC</span> (<span class="dt">Weierstrass</span> a b) <span class="dt">FieldOperations</span> {<span class="fu">..</span>}) (<span class="dt">Jacobian</span> x y z) <span class="fu">=</span>
+    <span class="kw">let</span> z2 <span class="fu">=</span> z<span class="fu">^</span><span class="dv">2</span>
+        z4 <span class="fu">=</span> z2<span class="fu">^</span><span class="dv">2</span>
+        z6 <span class="fu">=</span> z2 <span class="fu">*</span> z4
+    <span class="kw">in</span> y<span class="fu">^</span><span class="dv">2</span> <span class="fu">==</span> (x<span class="fu">^</span><span class="dv">3</span>) <span class="fu">+</span> (a <span class="fu">*</span> x <span class="fu">*</span> z4) <span class="fu">+</span> (b <span class="fu">*</span> z6)</code></pre>
+</div>
+<div id="field-definition-integers-mod-p" class="slide section level1">
+<h1>Field definition: integers mod <span class="math">\(p\)</span></h1>
+<pre class="sourceCode haskell" id="mycode"><code class="sourceCode haskell"><span class="ot">{-# LANGUAGE FlexibleInstances   #-}</span>
+<span class="ot">{-# LANGUAGE ScopedTypeVariables #-}</span>
+<span class="ot">{-# LANGUAGE TypeFamilies        #-}</span>
+<span class="ot">{-# LANGUAGE TypeOperators       #-}</span>
+<span class="kw">instance</span> (<span class="dt">KnownNat</span> n) <span class="ot">=&gt;</span> <span class="dt">Field</span> (<span class="dt">Integer</span> <span class="ot">`Mod`</span> n) <span class="kw">where</span>
+  <span class="kw">type</span> <span class="dt">FieldParameter</span> (<span class="dt">Integer</span> <span class="ot">`Mod`</span> n) <span class="fu">=</span> ()
+  zero      <span class="fu">=</span> <span class="dv">0</span>
+  one       <span class="fu">=</span> <span class="dv">1</span>
+  add _     <span class="fu">=</span> (<span class="fu">+</span>)
+  neg _     <span class="fu">=</span> negate
+  sub _     <span class="fu">=</span> (<span class="fu">-</span>)
+  rep _ n a <span class="fu">=</span> fromInteger n <span class="fu">*</span> a
+  mul _     <span class="fu">=</span> (<span class="fu">*</span>)
+  inv _ a   <span class="fu">=</span> toMod <span class="fu">$</span> invm&#39; (natVal (<span class="dt">Proxy</span><span class="ot"> ::</span> <span class="dt">Proxy</span> n)) (unMod a)</code></pre>
+</div>
+<div id="the-ellipticcurvepoint-type-relation" class="slide section level1">
+<h1>The <code>EllipticCurvePoint</code> type relation</h1>
+<pre class="sourceCode haskell" id="mycode"><code class="sourceCode haskell"><span class="kw">class</span> <span class="dt">EllipticCurvePoint</span> c p <span class="kw">where</span>
+<span class="ot">  toAffine    ::</span> (<span class="dt">Field</span> f) <span class="ot">=&gt;</span> <span class="dt">EC</span> c f <span class="ot">-&gt;</span> p c f <span class="ot">-&gt;</span> <span class="dt">Affine</span> c f
+<span class="ot">  fromAffine  ::</span> (<span class="dt">Field</span> f) <span class="ot">=&gt;</span> <span class="dt">EC</span> c f <span class="ot">-&gt;</span> <span class="dt">Affine</span> c f <span class="ot">-&gt;</span> p c f
+<span class="ot">  zeroPoint   ::</span> (<span class="dt">Field</span> f) <span class="ot">=&gt;</span> <span class="dt">EC</span> c f <span class="ot">-&gt;</span> p c f
+<span class="ot">  isZeroPoint ::</span> (<span class="dt">Field</span> f) <span class="ot">=&gt;</span> <span class="dt">EC</span> c f <span class="ot">-&gt;</span> p c f <span class="ot">-&gt;</span> <span class="dt">Bool</span>
+<span class="ot">  affineXY    ::</span> (<span class="dt">Field</span> f) <span class="ot">=&gt;</span> <span class="dt">EC</span> c f <span class="ot">-&gt;</span> p c f <span class="ot">-&gt;</span> <span class="dt">Maybe</span> (f, f)
+
+<span class="kw">data</span> <span class="dt">Affine</span> (<span class="ot">c ::</span> <span class="fu">*</span> <span class="ot">-&gt;</span> <span class="fu">*</span>) f <span class="fu">=</span> <span class="dt">Affine</span> { affineX,<span class="ot"> affineY ::</span> f } <span class="fu">|</span> <span class="dt">AffinePointAtInfinity</span></code></pre>
+</div>
+<div id="the-ellipticcurve-type-relation" class="slide section level1">
+<h1>The <code>EllipticCurve</code> type relation</h1>
+<pre class="sourceCode haskell" id="mycode"><code class="sourceCode haskell"><span class="kw">class</span> (<span class="dt">EllipticCurvePoint</span> c p) <span class="ot">=&gt;</span> <span class="dt">EllipticCurve</span> c p <span class="kw">where</span>
+<span class="ot">  onCurve  ::</span> (<span class="dt">Field</span> f) <span class="ot">=&gt;</span> <span class="dt">EC</span> c f <span class="ot">-&gt;</span> p c f <span class="ot">-&gt;</span> <span class="dt">Bool</span>
+<span class="ot">  add      ::</span> (<span class="dt">Field</span> f) <span class="ot">=&gt;</span> <span class="dt">EC</span> c f <span class="ot">-&gt;</span> p c f <span class="ot">-&gt;</span> p c f <span class="ot">-&gt;</span> p c f
+<span class="ot">  negate   ::</span> (<span class="dt">Field</span> f) <span class="ot">=&gt;</span> <span class="dt">EC</span> c f <span class="ot">-&gt;</span> p c f <span class="ot">-&gt;</span> p c f
+
+  <span class="co">-- Default provided, but should be overriden</span>
+<span class="ot">  double   ::</span> (<span class="dt">Field</span> f) <span class="ot">=&gt;</span> <span class="dt">EC</span> c f <span class="ot">-&gt;</span> p c f <span class="ot">-&gt;</span> p c f
+
+  <span class="co">-- Default via Montgomery method</span>
+<span class="ot">  multiply ::</span> (<span class="dt">Field</span> f) <span class="ot">=&gt;</span> <span class="dt">EC</span> c f <span class="ot">-&gt;</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> p c f <span class="ot">-&gt;</span> p c f</code></pre>
+</div>
+<div id="curve-definition-weierstrass-with-jacobian-points" class="slide section level1">
+<h1>Curve definition: Weierstrass with Jacobian points</h1>
+<pre class="sourceCode haskell" id="mycode"><code class="sourceCode haskell"><span class="kw">data</span> <span class="dt">Weierstrass</span> f <span class="fu">=</span> <span class="dt">Weierstrass</span> { weierstrassA,<span class="ot"> weierstrassB ::</span> f }
+
+<span class="kw">instance</span> <span class="dt">EllipticCurvePoint</span> <span class="dt">Weierstrass</span> <span class="dt">Jacobian</span> <span class="kw">where</span>
+  toAffine (<span class="dt">EC</span> _ <span class="dt">FieldOperations</span> {<span class="fu">..</span>}) (<span class="dt">Jacobian</span> x y z)
+    <span class="fu">|</span> z <span class="fu">==</span> zero <span class="fu">=</span> <span class="dt">AffinePointAtInfinity</span>
+    <span class="fu">|</span> otherwise <span class="fu">=</span>
+      <span class="kw">let</span> iz3 <span class="fu">=</span> (<span class="fu">./</span>) (z <span class="fu">^</span> <span class="dv">3</span>)
+      <span class="kw">in</span> <span class="dt">Affine</span> (x <span class="fu">*</span> iz3 <span class="fu">*</span> z) (y <span class="fu">*</span> iz3)
+
+  fromAffine _ (<span class="dt">Affine</span> x y)          <span class="fu">=</span> <span class="dt">Jacobian</span> x   y   one
+  fromAffine _ <span class="dt">AffinePointAtInfinity</span> <span class="fu">=</span> <span class="dt">Jacobian</span> one one zero
+
+<span class="kw">instance</span> <span class="dt">EllipticCurve</span> <span class="dt">Weierstrass</span> <span class="dt">Jacobian</span> <span class="kw">where</span>
+  onCurve (<span class="dt">EC</span> (<span class="dt">Weierstrass</span> a b) <span class="dt">FieldOperations</span> {<span class="fu">..</span>}) (<span class="dt">Jacobian</span> x y z) <span class="fu">=</span>
+    <span class="kw">let</span> z2 <span class="fu">=</span> z<span class="fu">^</span><span class="dv">2</span>
+        z4 <span class="fu">=</span> z2<span class="fu">^</span><span class="dv">2</span>
+        z6 <span class="fu">=</span> z2 <span class="fu">*</span> z4
+    <span class="kw">in</span> y<span class="fu">^</span><span class="dv">2</span> <span class="fu">==</span> (x<span class="fu">^</span><span class="dv">3</span>) <span class="fu">+</span> (a <span class="fu">*</span> x <span class="fu">*</span> z4) <span class="fu">+</span> (b <span class="fu">*</span> z6)
+
+  add c<span class="fu">@</span>(<span class="dt">EC</span> _ <span class="dt">FieldOperations</span> {<span class="fu">..</span>})
+      p1<span class="fu">@</span>(<span class="dt">Jacobian</span> x1 y1 z1) p2<span class="fu">@</span>(<span class="dt">Jacobian</span> x2 y2 z2)
+    <span class="fu">|</span> z1 <span class="fu">==</span> zero <span class="fu">=</span> p3 <span class="ot">`seq`</span> p2
+    <span class="fu">|</span> z2 <span class="fu">==</span> zero <span class="fu">=</span> p3 <span class="ot">`seq`</span> p1
+    <span class="fu">|</span> otherwise  <span class="fu">=</span> p3 <span class="ot">`seq`</span> p3
+    <span class="kw">where</span>
+      p3 <span class="fu">=</span> jacobianAdd c x1 y1 z1 x2 y2 z2
+
+  double c<span class="fu">@</span>(<span class="dt">EC</span> _ <span class="dt">FieldOperations</span> {<span class="fu">..</span>}) p<span class="fu">@</span>(<span class="dt">Jacobian</span> x1 y1 z1) <span class="fu">=</span> jacobianDouble&#39; c x1 y1 z1 (z1<span class="fu">^</span><span class="dv">2</span>)
+
+  negate c<span class="fu">@</span>(<span class="dt">EC</span> _ <span class="dt">FieldOperations</span> {<span class="fu">..</span>}) p<span class="fu">@</span>(<span class="dt">Jacobian</span> x1 y1 z1) <span class="fu">=</span> <span class="dt">Jacobian</span> x1 ((<span class="fu">.-</span>) y1) z1</code></pre>
+</div>
+<div id="optimizationefficiency" class="slide section level1">
+<h1>Optimization/efficiency</h1>
+<ul>
+<li>&quot;Pluggable&quot; library - insert your own code for timing resistance, efficiency</li>
+</ul>
+<pre class="sourceCode haskell" id="mycode"><code class="sourceCode haskell"><span class="kw">instance</span> <span class="dt">Field</span> <span class="dt">P521</span>  
+  <span class="co">{- ... -}</span>
+<span class="ot">  pow ::</span> <span class="dt">FieldParameter</span> <span class="dt">P521</span> <span class="ot">-&gt;</span> <span class="dt">P521</span> <span class="ot">-&gt;</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> <span class="dt">P521</span> 
+  pow p <span class="fu">=</span> montgomery (mul p) (sqr p) (inv p) (one) <span class="dv">521</span> 
+
+<span class="ot">montgomery ::</span> (a <span class="ot">-&gt;</span> a <span class="ot">-&gt;</span> a) <span class="ot">-&gt;</span> (a <span class="ot">-&gt;</span> a) <span class="ot">-&gt;</span> (a <span class="ot">-&gt;</span> a) <span class="ot">-&gt;</span> a <span class="ot">-&gt;</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> a <span class="ot">-&gt;</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> a
+montgomery mul sqr inv id n a d <span class="fu">=</span> gpow montgomery&#39; inv id a d
+  <span class="kw">where</span>
+    montgomery&#39; a d <span class="fu">=</span> go id a n
+      <span class="kw">where</span>
+        go <span class="fu">!</span>r0 <span class="fu">!</span>r1 <span class="fu">!</span>n
+          <span class="fu">|</span> n <span class="fu">==</span> <span class="fu">-</span><span class="dv">1</span>     <span class="fu">=</span> r0
+          <span class="fu">|</span> testBit d n <span class="fu">=</span> go (r0 <span class="ot">`mul`</span> r1) (sqr r1)      (n <span class="fu">-</span> <span class="dv">1</span>)
+          <span class="fu">|</span> otherwise   <span class="fu">=</span> go (sqr r0)      (r0 <span class="ot">`mul`</span> r1) (n <span class="fu">-</span> <span class="dv">1</span>)</code></pre>
+</div>
+<div id="interfacing-with-openssl" class="slide section level1">
+<h1>&quot;Interfacing&quot; with OpenSSL</h1>
+<pre class="sourceCode haskell" id="mycode"><code class="sourceCode haskell">foreign <span class="kw">import </span>ccall unsafe &quot;p521.h felem_neg&quot;
+<span class="ot">  c_felem_neg ::</span> <span class="dt">Dst</span> <span class="dt">Felem</span> <span class="ot">-&gt;</span> <span class="dt">Felem</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()
+
+<span class="ot">call1 ::</span> (<span class="dt">Dst</span> <span class="dt">Felem</span> <span class="ot">-&gt;</span> <span class="dt">Felem</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()) <span class="ot">-&gt;</span> <span class="dt">P521</span> <span class="ot">-&gt;</span> <span class="dt">P521</span>
+call1 fun (<span class="dt">P521</span> p) <span class="fu">=</span> unsafePerformIO <span class="fu">$</span> <span class="kw">do</span>
+  withForeignPtr p <span class="fu">$</span> \felem <span class="ot">-&gt;</span> <span class="kw">do</span>
+    make (\dst <span class="ot">-&gt;</span> fun dst felem)
+
+<span class="ot">neg ::</span> <span class="dt">P521</span> <span class="ot">-&gt;</span> <span class="dt">P521</span>
+neg <span class="fu">=</span> call1 c_felem_neg</code></pre>
+<pre class="sourceCode c" id="mycode"><code class="sourceCode c"><span class="dt">void</span> felem_neg(felem out, <span class="dt">const</span> felem in)
+{
+    <span class="co">/* In order to prevent underflow, we subtract from 0 mod p. */</span>
+    <span class="dt">static</span> <span class="dt">const</span> limb two62m3 = (((limb)<span class="dv">1</span>) &lt;&lt; <span class="dv">62</span>) - (((limb)<span class="dv">1</span>) &lt;&lt; <span class="dv">5</span>);
+    <span class="dt">static</span> <span class="dt">const</span> limb two62m2 = (((limb)<span class="dv">1</span>) &lt;&lt; <span class="dv">62</span>) - (((limb)<span class="dv">1</span>) &lt;&lt; <span class="dv">4</span>);
+
+    out[<span class="dv">0</span>] = two62m3 - in[<span class="dv">0</span>];
+    out[<span class="dv">1</span>] = two62m2 - in[<span class="dv">1</span>];
+    out[<span class="dv">2</span>] = two62m2 - in[<span class="dv">2</span>];
+    out[<span class="dv">3</span>] = two62m2 - in[<span class="dv">3</span>];
+    out[<span class="dv">4</span>] = two62m2 - in[<span class="dv">4</span>];
+    out[<span class="dv">5</span>] = two62m2 - in[<span class="dv">5</span>];
+    out[<span class="dv">6</span>] = two62m2 - in[<span class="dv">6</span>];
+    out[<span class="dv">7</span>] = two62m2 - in[<span class="dv">7</span>];
+    out[<span class="dv">8</span>] = two62m2 - in[<span class="dv">8</span>];
+}</code></pre>
+</div>
+<div id="future-work" class="slide section level1">
+<h1>Future work</h1>
+<ul>
+<li>Point counting for arbitrary curves (useful for e.g. primality proving)</li>
+<li>Pairing (using bilinear maps for multi-party key exchange)</li>
+<li>Working with <code>Crypto.PubKey.Types</code> and other &quot;front-end&quot; type libraries</li>
+<li>Further improvements to timing attack resistance and efficiency</li>
+</ul>
+</div>
+</body>
+</html>
