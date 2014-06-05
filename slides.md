@@ -2,29 +2,29 @@
 % Created by Brandon Azad and Nikhil Desai
 
 # Intro
-* A new library for ECC.
-* Advantages:
-    * Modular
-    * Cleanly implemented
-    * Readily extensible
-* Provides performant implementations while retaining flexibility
+> * A new library for ECC.
+> * Advantages:
+>     * Modular
+>     * Cleanly implemented
+>     * Readily extensible
+> * Provides performant implementations while retaining flexibility
 
 # Motivation
-* Cryptography research: creating new _schemes_ for encryption/authentication
-    * Innovative mixing and matching of different primitives
-    * Making incremental improvements to existing ones
-    * Collaboration/extensibility necessary
-* Don't want researchers to reinvent the wheel
-    * Want a clean, easily-utilized framework for testing
-    * Inspired by Cryptol
-* Existing libraries kind of suck
+> * Cryptography research: creating new _schemes_ for encryption/authentication
+>     * Innovative mixing and matching of different primitives
+>     * Making incremental improvements to existing ones
+>     * Collaboration/extensibility necessary
+> * Don't want researchers to reinvent the wheel: want clean, usable framework for testing
+> * Existing libraries aren't great for this
+>     * `hecc` (Marcel Fourne) 
+>     * `crypto-pubkey` (Vincent Hanquez)
 
 # Why Haskell?
-* Clean specifications possible without sacrificing performance
-* Good for mathematical abstraction
-* Thanks to this class, we can do cool things with Haskell! 
+> * Clean specifications possible without sacrificing performance
+> * Good for mathematical abstraction
+> * Thanks to this class, we can do cool things with Haskell! 
 
-# Language of ECC
+# Idea of elliptic-curve cryptography
 * **Elliptic curves**: defined by equation of form $y^2=x^3+ax^2+b$ 
 * Points endowed with **group structure.**
 
@@ -33,16 +33,16 @@
 # ElGamal encryption 
 * Elliptic curve groups well-suited for **ElGamal encryption.**
 * Prerequisite: group $G$ of prime order $p$ 
-* Asymmetric key exchange: $g\in G$ public, $\alpha\in\mathbb{Z}_p$ private, $h=g^{\alpha}$ public
+* Asymmetric key exchange: $g\in G$ public ("generator"), $\alpha\in\mathbb{Z}_p$ private, $h=g^{\alpha}$ public
 * To encrypt $m\in G$:
     * Pick random $r\leftarrow\mathbb{Z}_p$
     * Send $(g^r, h^rm)$ 
 * To decrypt $(x, y)$ 
-    * Compute $m = x^{-\alpha}y$ 
+    * Compute $m = x^{-\alpha}y=g^{-\alpha r}h^rm=g^{-\alpha r}g^{\alpha r}m=m$ 
 * Need fast exponentiation and inversion, but...
-* Need to keep discrete log - finding $\alpha$ given $g^{\alpha}$ - *hard*.
+* Need to make sure finding $\alpha$ given $g^{\alpha}$ (*discrete log* problem) *hard*.
 
-# Language of ECC
+# Elliptic curves over arbitrary fields 
 * Canonical formula for point addition
 $$x_R=\left(\frac{y_P-y_Q}{x_P-x_Q}\right)^2-x_P-x_Q;$$ $$y_R=\left(\frac{y_P-y_Q}{x_P-x_Q}\right)(x_P-x_R)-y_P.$$ 
 
@@ -50,10 +50,16 @@ $$x_R=\left(\frac{y_P-y_Q}{x_P-x_Q}\right)^2-x_P-x_Q;$$ $$y_R=\left(\frac{y_P-y_
 
 # Elliptic curves over finite fields
 * Typically defined over *finite* fields: $\mathbb{Z}_p$ (integers mod $p$), $\mathbb{Z}_{2^k}$ (field of size $2^k$) 
-    * Finite representations of points 
+    * Finite representations of points ($\leq 2k$ bits for $\mathbb{Z}_{2^k}$) 
     * Discrete-log problem hard
 
-# Library design 
+# Structure of elliptic-curve cryptography
+* Key components
+    * Underlying field ($\mathbb{Z}_p$, $\mathbb{Z}_{2^k}$, etc.) 
+    * Point type (Affine, Jacobian, etc.)
+    * Curve type (Weierstrass, Edwards, etc.)
+
+# Structure of elliptic-curve library
 * Key typeclasses
     * `Field`
     * `EllipticCurvePoint` (multi-parameter)
@@ -67,14 +73,16 @@ class (Eq f) => Field f where
   one  :: f
   add  :: FieldParameter f -> f -> f -> f
   neg  :: FieldParameter f -> f -> f
-  rep  :: FieldParameter f -> Integer -> f -> f
   mul  :: FieldParameter f -> f -> f -> f
-  sqr  :: FieldParameter f -> f -> f 
   inv  :: FieldParameter f -> f -> f
+  
+  -- Default, but slow implementations provided
+  rep  :: FieldParameter f -> Integer -> f -> f
+  sqr  :: FieldParameter f -> f -> f 
   pow  :: FieldParameter f -> f -> Integer -> f
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# `FieldOperations f`
+# Easy access to field operations: `FieldOperations f`
 ~~~~ {#mycode .haskell} 
 data FieldOperations f = FieldOperations
   { (+)  :: f -> f -> f       
@@ -91,23 +99,33 @@ data FieldOperations f = FieldOperations
 ops :: (Field f) => FieldParameter f -> FieldOperations f
 ops p = FieldOperations (add p) (neg p) (sub p) (rep p)
                         (mul p) (sqr p) (inv p) (div p) (pow p)
+~~~~~~
+
+~~~~ {#mycode .haskell} 
+{-# LANGUAGE RecordWildCards #-}
+onCurve (EC (Weierstrass a b) FieldOperations {..}) (Jacobian x y z) =
+    let z2 = z^2
+        z4 = z2^2
+        z6 = z2 * z4
+    in y^2 == (x^3) + (a * x * z4) + (b * z6)
 ~~~~~~~~~~~
 
 # Field definition: integers mod $p$ 
 ~~~~ {#mycode .haskell}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
 instance (KnownNat n) => Field (Integer `Mod` n) where
-
   type FieldParameter (Integer `Mod` n) = ()
-
-  zero = 0
-  one = 1
-  add _ = (+)
-  neg _ = negate
-  sub _ = (-)
+  zero      = 0
+  one       = 1
+  add _     = (+)
+  neg _     = negate
+  sub _     = (-)
   rep _ n a = fromInteger n * a
-  mul _ = (*)
-  inv _ a = toMod $ 
-      invm' (natVal (Proxy :: Proxy n)) (unMod a)
+  mul _     = (*)
+  inv _ a   = toMod $ invm' (natVal (Proxy :: Proxy n)) (unMod a)
 ~~~~~~~
 
 # The `EllipticCurvePoint` type relation
@@ -127,8 +145,12 @@ data Affine (c :: * -> *) f = Affine { affineX, affineY :: f } | AffinePointAtIn
 class (EllipticCurvePoint c p) => EllipticCurve c p where
   onCurve  :: (Field f) => EC c f -> p c f -> Bool
   add      :: (Field f) => EC c f -> p c f -> p c f -> p c f
-  double   :: (Field f) => EC c f -> p c f -> p c f
   negate   :: (Field f) => EC c f -> p c f -> p c f
+
+  -- Default provided, but should be overriden
+  double   :: (Field f) => EC c f -> p c f -> p c f
+
+  -- Default via Montgomery method
   multiply :: (Field f) => EC c f -> Int -> Integer -> p c f -> p c f
 ~~~~~~ 
 
