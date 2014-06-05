@@ -1,0 +1,1 @@
+pandoc -t slidy -o slides.html -s --mathjax slides.md
