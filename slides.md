@@ -20,12 +20,12 @@
 >     * `crypto-pubkey` (Vincent Hanquez)
 
 # Why Haskell?
-> * Clean specifications possible without sacrificing performance
-> * Good for mathematical abstraction
-> * Thanks to this class, we can do cool things with Haskell! 
+* Clean specifications possible without sacrificing performance
+* Good for mathematical abstraction
+* Thanks to this class, we can do cool things with Haskell! 
 
 # Idea of elliptic-curve cryptography
-* **Elliptic curves**: defined by equation of form $y^2=x^3+ax^2+b$ 
+* **Elliptic curves**: defined by equation of form $y^2=x^3+ax+b$ 
 * Points endowed with **group structure.**
 
 ![EC addition](images/eca.gif "EC addition")
@@ -52,6 +52,12 @@ $$x_R=\left(\frac{y_P-y_Q}{x_P-x_Q}\right)^2-x_P-x_Q;$$ $$y_R=\left(\frac{y_P-y_
 * Typically defined over *finite* fields: $\mathbb{Z}_p$ (integers mod $p$), $\mathbb{Z}_{2^k}$ (field of size $2^k$) 
     * Finite representations of points ($\leq 2k$ bits for $\mathbb{Z}_{2^k}$) 
     * Discrete-log problem hard
+
+# Point types
+* Affine: standard $(x,y)$ representation
+* Jacobian: $(X,Y,Z)$ 
+    * Represents $({X}/{Z^2},Y/{Z^3})$ in affine coordinates
+    * Easier to add
 
 # Structure of elliptic-curve cryptography
 * Key components
